@@ -20,12 +20,17 @@ public:
     void gpStartClockWiseCommandTx(uint8_t channel);
     void gpStartContrClockWiseCommandTx(uint8_t channel);
     void gpStartAutoSwitcherCommandTx(uint8_t channel, uint16_t offTime, uint16_t onTime);
+    void gpSetMidCommandTx(uint8_t module, uint8_t data[], uint8_t size);
+    void gpGetMidCommandTx(uint8_t module, uint8_t size);
+
 signals:
     void gpDataRxSize8(QVector<uint8_t> Data);
     void gpDataRxSize16(QVector<uint16_t> Data);
     void gpDataRxSize32(QVector<uint32_t> Data);
     void gpDataRxSizeDouble(QVector<double> Data);
     void gpSend(QVector<uint8_t> commandBuff);
+    void gpColdPalteMidRx(QVector<uint8_t> commandBuff);
+    void gpRgbCapMidRx(QVector<uint8_t> commandBuff);
 };
 
 #endif // GENERALPROTOCOL_H

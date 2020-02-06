@@ -16,12 +16,19 @@ typedef enum {
     COMMAND_DATA_FLAG_SIZE_MASK   = 3,
 }COMMAND_DATA_FLAG;
 
+typedef enum {
+    EXTERNAL_MODULE_COLDPALE = 0,
+    EXTERNAL_MODULE_RGB_CAP  = 1,
+} ExternalModule;
+
 typedef enum{
     GP_DATA                   = 0,
     GP_STOP                   = 1,
     GP_START_CLOCK_WISE       = 2,
     GP_START_CONTR_CLOCK_WISE = 3,
     GP_START_AUTO_SWITCHER    = 4,
+    GP_SET_MID                = 6,
+    GP_GET_MID                = 7,
 } GP_COMMAND;
 
 #pragma pack(push, 1)
@@ -52,6 +59,19 @@ typedef struct {
     uint8_t  channel;
 }GpStoptSubcommand;
 
+#define MAX_MID_DATA_LEN 20
+typedef struct {
+    uint8_t extModuleId;
+    uint8_t midDataLen;
+    uint8_t midData[MAX_MID_DATA_LEN];
+}GpSetMidSubCommand;
+
+typedef struct {
+    uint8_t extModuleId;
+    uint8_t midDataLen;
+    uint8_t midData[MAX_MID_DATA_LEN];
+}GpGetMidSubCommand;
+
 typedef struct GpCommand{
     uint8_t headr;
     union {
@@ -60,6 +80,8 @@ typedef struct GpCommand{
         GpStartContrClockWiseSubcommand startContrClockWiseSubcommand;
         GpStoptSubcommand               stoptSubcommand;
         GpStartAutoSwitcher             startAutoSwitcher;
+        GpSetMidSubCommand              setMidSubCommand;
+        GpGetMidSubCommand              getMidSubCommand;
         uint8_t                         buffSubComand[PROTOCOL_BUFF_SIZE];
     };
 } GpCommand;
@@ -85,6 +107,27 @@ bool generalProtocol::gpDecode(uint8_t data[], uint32_t size)
     GpCommandBuff gpCommandBuff;
     memcpy((gpCommandBuff.buff), static_cast<uint8_t*>(data), size);
     switch(gpCommandBuff.command.headr) {
+
+        case GP_GET_MID: {
+            if (gpCommandBuff.command.getMidSubCommand.midDataLen > MAX_MID_DATA_LEN) {
+                return false;
+            }
+            uint8_t dataSize = gpCommandBuff.command.getMidSubCommand.midDataLen;
+            QVector<uint8_t> midDataRx(dataSize);
+            for (uint8_t i = 0; i < dataSize; i++) {
+                midDataRx[i] = gpCommandBuff.command.getMidSubCommand.midData[i];
+            }
+            switch (gpCommandBuff.command.getMidSubCommand.extModuleId) {
+               case EXTERNAL_MODULE_COLDPALE:
+                   emit gpColdPalteMidRx(midDataRx);
+                   break;
+                case EXTERNAL_MODULE_RGB_CAP:
+                    emit gpRgbCapMidRx(midDataRx);
+                   break;
+                default: break;
+            }
+            break;
+        }
         case GP_DATA:
             uint8_t sizeFlag = gpCommandBuff.command.dataSubComand.flags & COMMAND_DATA_FLAG_SIZE_MASK;
             QVector<uint8_t>  dataSize8;
@@ -173,5 +216,28 @@ void generalProtocol::gpStartAutoSwitcherCommandTx(uint8_t channel, uint16_t off
     gpCommand->startAutoSwitcher.channel = static_cast<uint8_t>(channel);
     gpCommand->startAutoSwitcher.onTime  = onTime;
     gpCommand->startAutoSwitcher.offTime = offTime;
+    emit gpSend(gpCommandV);
+}
+
+void generalProtocol::gpSetMidCommandTx(uint8_t module, uint8_t data[], uint8_t size)
+{
+    QVector<uint8_t> gpCommandV;
+    gpCommandV.resize(sizeof(GpCommand));
+    GpCommand *gpCommand = (GpCommand*)(gpCommandV.data());
+    gpCommand->headr = GP_SET_MID;
+    gpCommand->setMidSubCommand.extModuleId = module;
+    gpCommand->setMidSubCommand.midDataLen = size;
+    memcpy(gpCommand->setMidSubCommand.midData, data, size);
+    emit gpSend(gpCommandV);
+}
+
+void generalProtocol::gpGetMidCommandTx(uint8_t module, uint8_t size)
+{
+    QVector<uint8_t> gpCommandV;
+    gpCommandV.resize(sizeof(GpCommand));
+    GpCommand *gpCommand = (GpCommand*)(gpCommandV.data());
+    gpCommand->headr = GP_GET_MID;
+    gpCommand->setMidSubCommand.extModuleId = module;
+    gpCommand->setMidSubCommand.midDataLen = size;
     emit gpSend(gpCommandV);
 }
